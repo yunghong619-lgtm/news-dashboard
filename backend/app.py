@@ -20,19 +20,30 @@ CORS(app)
 # ============================================================
 def initialize_app():
     """서버 시작 시 데이터베이스 초기화 및 뉴스 수집"""
+    import traceback
+
     print("=" * 50)
     print("새솔's 뉴스피드 서버 시작!")
     print("=" * 50)
 
-    # 데이터베이스 초기화
-    init_database()
+    try:
+        # 데이터베이스 초기화
+        print("[1] 데이터베이스 초기화 중...")
+        init_database()
+        print("[1] 데이터베이스 초기화 완료!")
 
-    # 뉴스가 없으면 네이버에서 수집
-    if len(get_all_news(1)) == 0:
-        print("\n네이버 뉴스 수집 중...")
-        collect_all_news()
+        # 뉴스 수집 (매번 새로 수집 - Render 무료 플랜은 DB 초기화됨)
+        print("[2] 네이버 뉴스 수집 중...")
+        count = collect_all_news()
+        print(f"[2] 뉴스 {count}개 수집 완료!")
 
-    print("초기화 완료!")
+    except Exception as e:
+        print(f"[ERROR] 초기화 실패: {e}")
+        print(traceback.format_exc())
+
+    print("=" * 50)
+    print("서버 준비 완료!")
+    print("=" * 50)
 
 # 앱 로드 시 초기화 실행
 initialize_app()
@@ -138,6 +149,7 @@ def get_keywords():
 @app.route('/api/refresh', methods=['POST'])
 def refresh_data():
     """네이버 뉴스 실시간 수집"""
+    import traceback
     try:
         count = collect_all_news()
         return jsonify({
@@ -147,8 +159,54 @@ def refresh_data():
     except Exception as e:
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': str(e),
+            'traceback': traceback.format_exc()
         }), 500
+
+
+@app.route('/api/debug', methods=['GET'])
+def debug_info():
+    """디버그 정보 확인"""
+    import traceback
+    from config import NAVER_CLIENT_ID, NAVER_CLIENT_SECRET, NAVER_RSS_FEEDS
+
+    result = {
+        'api_configured': bool(NAVER_CLIENT_ID and NAVER_CLIENT_SECRET),
+        'client_id_length': len(NAVER_CLIENT_ID) if NAVER_CLIENT_ID else 0,
+        'rss_feeds': list(NAVER_RSS_FEEDS.keys()),
+        'news_count': len(get_all_news(100)),
+        'test_results': {}
+    }
+
+    # RSS 테스트
+    try:
+        import requests
+        test_url = NAVER_RSS_FEEDS.get('IT', '')
+        resp = requests.get(test_url, timeout=5)
+        result['test_results']['rss_status'] = resp.status_code
+        result['test_results']['rss_length'] = len(resp.content)
+    except Exception as e:
+        result['test_results']['rss_error'] = str(e)
+
+    # 검색 API 테스트
+    try:
+        import requests
+        headers = {
+            'X-Naver-Client-Id': NAVER_CLIENT_ID,
+            'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+        }
+        resp = requests.get(
+            'https://openapi.naver.com/v1/search/news.json',
+            headers=headers,
+            params={'query': 'AI', 'display': 1},
+            timeout=5
+        )
+        result['test_results']['search_status'] = resp.status_code
+        result['test_results']['search_response'] = resp.json() if resp.status_code == 200 else resp.text[:200]
+    except Exception as e:
+        result['test_results']['search_error'] = str(e)
+
+    return jsonify(result)
 
 
 @app.route('/api/categories', methods=['GET'])
