@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>새솔's 뉴스피드 ✨</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 헤더 -->
+        <header class="header">
+            <div class="brand">
+                <span class="brand-icon">🌸</span>
+                <div class="brand-text">
+                    <h1>새솔's 뉴스피드</h1>
+                    <p class="subtitle">오늘도 좋은 하루 보내세요 💕</p>
+                </div>
+            </div>
+            <button class="refresh-btn" onclick="refreshData()">
+                <span class="icon">&#8635;</span> 새로고침
+            </button>
+        </header>
+
+        <!-- 인사말 카드 -->
+        <section class="greeting-card">
+            <div class="greeting-content">
+                <span class="greeting-emoji">☀️</span>
+                <div class="greeting-text">
+                    <p id="greetingMessage">안녕하세요, 새솔님!</p>
+                    <p class="greeting-sub" id="dateDisplay"></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 통계 카드 -->
+        <section class="stats-cards">
+            <div class="stat-card">
+                <div class="stat-icon">📰</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="totalNews">0</span>
+                    <span class="stat-label">오늘의 뉴스</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🏷️</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="totalCategories">0</span>
+                    <span class="stat-label">카테고리</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🔥</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="topKeyword">-</span>
+                    <span class="stat-label">핫 키워드</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 차트 섹션 -->
+        <section class="charts-section">
+            <div class="chart-container">
+                <h3>📊 카테고리별 뉴스</h3>
+                <canvas id="categoryChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3>📈 출처별 뉴스</h3>
+                <canvas id="sourceChart"></canvas>
+            </div>
+        </section>
+
+        <!-- 키워드 트렌드 -->
+        <section class="keywords-section">
+            <h3>✨ 오늘의 키워드</h3>
+            <div class="keywords-container" id="keywordsContainer">
+                <!-- 키워드가 여기에 동적으로 추가됨 -->
+            </div>
+        </section>
+
+        <!-- 카테고리 필터 -->
+        <section class="filter-section">
+            <h3>📂 카테고리</h3>
+            <div class="category-buttons" id="categoryButtons">
+                <button class="category-btn active" data-category="all">전체</button>
+            </div>
+        </section>
+
+        <!-- 뉴스 목록 -->
+        <section class="news-section">
+            <h3>📋 최신 뉴스</h3>
+            <div class="news-list" id="newsList">
+                <div class="loading">뉴스를 불러오는 중...</div>
+            </div>
+        </section>
+
+        <!-- 푸터 -->
+        <footer class="footer">
+            <p>Made with 💕 for 새솔</p>
+            <p class="small">실시간 네이버 뉴스</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        // 인사말 설정
+        function setGreeting() {
+            const hour = new Date().getHours();
+            const greetingEl = document.getElementById('greetingMessage');
+            const dateEl = document.getElementById('dateDisplay');
+
+            let greeting = '';
+            let emoji = '';
+
+            if (hour >= 5 && hour < 12) {
+                greeting = '좋은 아침이에요, 새솔님! ☀️';
+                emoji = '🌅';
+            } else if (hour >= 12 && hour < 14) {
+                greeting = '점심 맛있게 드세요, 새솔님! 🍱';
+                emoji = '🌞';
+            } else if (hour >= 14 && hour < 18) {
+                greeting = '오후도 화이팅, 새솔님! 💪';
+                emoji = '☀️';
+            } else if (hour >= 18 && hour < 22) {
+                greeting = '오늘 하루도 수고했어요, 새솔님! 🌙';
+                emoji = '🌆';
+            } else {
+                greeting = '편안한 밤 되세요, 새솔님! 🌟';
+                emoji = '🌙';
+            }
+
+            greetingEl.textContent = greeting;
+            document.querySelector('.greeting-emoji').textContent = emoji;
+
+            // 날짜 표시
+            const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            dateEl.textContent = new Date().toLocaleDateString('ko-KR', options);
+        }
+
+        setGreeting();
+        setInterval(setGreeting, 60000); // 1분마다 업데이트
+    </script>
+</body>
+</html>
