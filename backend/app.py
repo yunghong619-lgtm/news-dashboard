@@ -15,6 +15,28 @@ from collector import collect_all_news
 app = Flask(__name__, static_folder='../frontend')
 CORS(app)
 
+# ============================================================
+# 앱 시작 시 초기화 (Gunicorn 호환)
+# ============================================================
+def initialize_app():
+    """서버 시작 시 데이터베이스 초기화 및 뉴스 수집"""
+    print("=" * 50)
+    print("새솔's 뉴스피드 서버 시작!")
+    print("=" * 50)
+
+    # 데이터베이스 초기화
+    init_database()
+
+    # 뉴스가 없으면 네이버에서 수집
+    if len(get_all_news(1)) == 0:
+        print("\n네이버 뉴스 수집 중...")
+        collect_all_news()
+
+    print("초기화 완료!")
+
+# 앱 로드 시 초기화 실행
+initialize_app()
+
 
 # ============================================================
 # 정적 파일 서빙
@@ -163,20 +185,5 @@ def internal_error(error):
 # ============================================================
 
 if __name__ == '__main__':
-    print("=" * 50)
-    print("뉴스 트렌드 대시보드 서버 (네이버 뉴스)")
-    print("=" * 50)
-
-    # 데이터베이스 초기화
-    init_database()
-
-    # 뉴스가 없으면 네이버에서 수집
-    from database import get_all_news as get_news_check
-    if len(get_news_check(1)) == 0:
-        print("\n네이버 뉴스 수집 중...")
-        collect_all_news()
-
-    print(f"\n서버 시작: http://localhost:{FLASK_PORT}")
-    print("=" * 50)
-
+    print(f"\n로컬 서버: http://localhost:{FLASK_PORT}")
     app.run(host=FLASK_HOST, port=FLASK_PORT, debug=DEBUG)
