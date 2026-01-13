@@ -7,6 +7,7 @@ const API_BASE = '';
 // 차트 인스턴스
 let categoryChart = null;
 let sourceChart = null;
+let stockCharts = {};
 
 // 현재 선택된 카테고리
 let currentCategory = 'all';
@@ -18,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadCategories();
     loadTrends();
     loadNews();
+    loadStocks();
 });
 
 /**
@@ -318,3 +320,171 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+/**
+ * 주식 데이터 로드
+ */
+async function loadStocks() {
+    try {
+        const response = await fetch(`${API_BASE}/api/stocks`);
+        const result = await response.json();
+
+        if (result.success) {
+            renderWatchlist(result.data.watchlist);
+            renderHotStocks(result.data.hotStocks);
+        }
+    } catch (error) {
+        console.error('주식 로드 실패:', error);
+        document.getElementById('watchlistContainer').innerHTML = '<div class="loading">주식 정보를 불러올 수 없습니다.</div>';
+        document.getElementById('hotStocksContainer').innerHTML = '<div class="loading">주식 정보를 불러올 수 없습니다.</div>';
+    }
+}
+
+/**
+ * 보유 종목 렌더링
+ */
+function renderWatchlist(stocks) {
+    const container = document.getElementById('watchlistContainer');
+
+    if (!stocks || stocks.length === 0) {
+        container.innerHTML = '<div class="loading">보유 종목 정보가 없습니다.</div>';
+        return;
+    }
+
+    container.innerHTML = stocks.map((stock, index) => {
+        const changeClass = stock.changePercent > 0 ? 'up' : stock.changePercent < 0 ? 'down' : 'neutral';
+        const changeSign = stock.changePercent > 0 ? '+' : '';
+        const chartId = `stockChart_${index}`;
+
+        return `
+            <div class="stock-card">
+                <div class="stock-card-header">
+                    <span class="stock-name">${escapeHtml(stock.displayName)}</span>
+                    <div>
+                        <span class="stock-price">${formatNumber(stock.currentPrice)}원</span>
+                        <span class="stock-change ${changeClass}">${changeSign}${stock.changePercent}%</span>
+                    </div>
+                </div>
+                <div class="stock-chart-container">
+                    <canvas id="${chartId}"></canvas>
+                </div>
+                <div class="stock-info-row">
+                    <div class="stock-info-item">
+                        <span class="stock-info-label">전일종가</span>
+                        <span class="stock-info-value">${formatNumber(stock.previousClose)}원</span>
+                    </div>
+                    <div class="stock-info-item">
+                        <span class="stock-info-label">고가</span>
+                        <span class="stock-info-value">${formatNumber(stock.dayHigh)}원</span>
+                    </div>
+                    <div class="stock-info-item">
+                        <span class="stock-info-label">저가</span>
+                        <span class="stock-info-value">${formatNumber(stock.dayLow)}원</span>
+                    </div>
+                    <div class="stock-info-item">
+                        <span class="stock-info-label">등락</span>
+                        <span class="stock-info-value ${changeClass}">${changeSign}${formatNumber(stock.change)}원</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // 차트 렌더링
+    stocks.forEach((stock, index) => {
+        if (stock.history && stock.history.length > 0) {
+            renderStockChart(`stockChart_${index}`, stock.history, stock.displayName);
+        }
+    });
+}
+
+/**
+ * 주식 차트 렌더링
+ */
+function renderStockChart(canvasId, history, name) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    // 기존 차트 파괴
+    if (stockCharts[canvasId]) {
+        stockCharts[canvasId].destroy();
+    }
+
+    const labels = history.map(h => h.date.slice(5)); // MM-DD 형식
+    const data = history.map(h => h.close);
+
+    // 상승/하락에 따른 색상
+    const isUp = data[data.length - 1] >= data[0];
+    const color = isUp ? '#f87171' : '#60a5fa';
+
+    stockCharts[canvasId] = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: name,
+                data: data,
+                borderColor: color,
+                backgroundColor: color + '20',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 2,
+                pointHoverRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    ticks: { color: 'rgba(255,255,255,0.5)', font: { size: 10 } },
+                    grid: { color: 'rgba(255,255,255,0.05)' }
+                },
+                y: {
+                    ticks: {
+                        color: 'rgba(255,255,255,0.5)',
+                        font: { size: 10 },
+                        callback: value => formatNumber(value)
+                    },
+                    grid: { color: 'rgba(255,255,255,0.05)' }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * 인기 종목 렌더링
+ */
+function renderHotStocks(stocks) {
+    const container = document.getElementById('hotStocksContainer');
+
+    if (!stocks || stocks.length === 0) {
+        container.innerHTML = '<div class="loading">인기 종목 정보가 없습니다.</div>';
+        return;
+    }
+
+    container.innerHTML = stocks.map(stock => {
+        const changeClass = stock.changePercent > 0 ? 'up' : stock.changePercent < 0 ? 'down' : 'neutral';
+        const changeSign = stock.changePercent > 0 ? '+' : '';
+
+        return `
+            <div class="hot-stock-card">
+                <div class="hot-stock-name">${escapeHtml(stock.displayName)}</div>
+                <div class="hot-stock-price">${formatNumber(stock.currentPrice)}원</div>
+                <div class="hot-stock-change ${changeClass}">${changeSign}${stock.changePercent}%</div>
+            </div>
+        `;
+    }).join('');
+}
+
+/**
+ * 숫자 포맷 (천 단위 콤마)
+ */
+function formatNumber(num) {
+    if (!num) return '0';
+    return Math.round(num).toLocaleString('ko-KR');
+}

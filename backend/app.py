@@ -11,6 +11,7 @@ from database import (
     get_source_stats, get_category_stats, get_keyword_trends
 )
 from collector import collect_all_news
+from stock import get_all_stock_data, get_watchlist_stocks, get_hot_stocks
 
 app = Flask(__name__, static_folder='../frontend')
 CORS(app)
@@ -237,6 +238,64 @@ def list_categories():
         'success': True,
         'data': CATEGORIES
     })
+
+
+# ============================================================
+# 주식 API 엔드포인트
+# ============================================================
+
+@app.route('/api/stocks', methods=['GET'])
+def get_stocks():
+    """전체 주식 데이터 조회"""
+    import traceback
+    try:
+        data = get_all_stock_data()
+        return jsonify({
+            'success': True,
+            'data': data
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
+@app.route('/api/stocks/watchlist', methods=['GET'])
+def get_watchlist():
+    """관심 종목 (보유 종목) 조회"""
+    import traceback
+    try:
+        data = get_watchlist_stocks()
+        return jsonify({
+            'success': True,
+            'data': data
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
+@app.route('/api/stocks/hot', methods=['GET'])
+def get_hot():
+    """인기 종목 조회"""
+    import traceback
+    try:
+        data = get_hot_stocks()
+        return jsonify({
+            'success': True,
+            'data': data
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
 
 
 # ============================================================
