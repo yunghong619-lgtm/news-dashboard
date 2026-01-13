@@ -1,8 +1,7 @@
 """
-뉴스 수집기 - Google News RSS 사용 (해외 서버 호환)
+뉴스 수집기 - 네이버 검색 API 사용
 """
 import requests
-import xml.etree.ElementTree as ET
 import re
 import html
 from datetime import datetime
@@ -11,6 +10,10 @@ from email.utils import parsedate_to_datetime
 import urllib.parse
 
 from database import insert_news, insert_keywords, clear_all_data, init_database, get_all_news
+from config import (
+    NAVER_CLIENT_ID, NAVER_CLIENT_SECRET,
+    NAVER_SEARCH_API_URL, SEARCH_KEYWORDS, CATEGORIES
+)
 
 
 def clean_html(text):
@@ -24,8 +27,8 @@ def clean_html(text):
     return text
 
 
-def parse_rss_date(date_str):
-    """RSS 날짜 문자열 파싱"""
+def parse_naver_date(date_str):
+    """네이버 API 날짜 문자열 파싱"""
     try:
         dt = parsedate_to_datetime(date_str)
         return dt.strftime('%Y-%m-%d %H:%M:%S')
@@ -34,75 +37,117 @@ def parse_rss_date(date_str):
 
 
 # ============================================================
-# Google News RSS 수집 (해외 서버에서도 작동)
+# 네이버 검색 API 수집
 # ============================================================
 
-# 카테고리별 검색어
-CATEGORY_QUERIES = {
-    'IT': ['AI 인공지능', '반도체', '스타트업', '테크'],
-    '경제': ['주식 코스피', '부동산', '금리 환율'],
-    '사회': ['사회 이슈', '교육 정책'],
-    '생활': ['건강 생활', '여행 문화'],
-}
-
-def fetch_google_news(query, category):
+def fetch_naver_news(query, category, display=10):
     """
-    Google News RSS에서 뉴스 수집
+    네이버 검색 API에서 뉴스 수집
     """
     news_list = []
 
     try:
-        # Google News RSS URL (한국어)
-        encoded_query = urllib.parse.quote(query)
-        url = f'https://news.google.com/rss/search?q={encoded_query}&hl=ko&gl=KR&ceid=KR:ko'
-
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'X-Naver-Client-Id': NAVER_CLIENT_ID,
+            'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
         }
 
-        response = requests.get(url, headers=headers, timeout=15)
+        params = {
+            'query': query,
+            'display': display,
+            'start': 1,
+            'sort': 'date'  # 최신순 정렬
+        }
+
+        response = requests.get(
+            NAVER_SEARCH_API_URL,
+            headers=headers,
+            params=params,
+            timeout=15
+        )
         response.raise_for_status()
 
-        root = ET.fromstring(response.content)
-        items = root.findall('.//item')
+        data = response.json()
+        items = data.get('items', [])
 
-        for item in items[:10]:  # 검색어당 10개
-            title_el = item.find('title')
-            link_el = item.find('link')
-            pub_date_el = item.find('pubDate')
-            source_el = item.find('source')
+        for item in items:
+            title = clean_html(item.get('title', ''))
+            description = clean_html(item.get('description', ''))
 
-            title = clean_html(title_el.text if title_el is not None else '')
-            source = source_el.text if source_el is not None else 'Google News'
+            # 출처 추출 (originallink에서 도메인 추출)
+            original_link = item.get('originallink', '')
+            source = extract_source(original_link)
 
             news = {
                 'title': title,
-                'description': f'{query} 관련 뉴스',
-                'content': title,
+                'description': description,
+                'content': description,
                 'source': source,
                 'category': category,
-                'url': link_el.text if link_el is not None else '',
+                'url': item.get('link', ''),
                 'image_url': '',
-                'published_at': parse_rss_date(pub_date_el.text if pub_date_el is not None else '')
+                'published_at': parse_naver_date(item.get('pubDate', ''))
             }
 
             news_list.append(news)
 
-        print(f"[Google] {category}/{query}: {len(news_list)}개")
+        print(f"[네이버] {category}/{query}: {len(news_list)}개")
 
     except Exception as e:
-        print(f"[Google 오류] {category}/{query}: {e}")
+        print(f"[네이버 오류] {category}/{query}: {e}")
 
     return news_list
 
 
-def collect_from_google_news():
-    """Google News에서 카테고리별 뉴스 수집"""
+def extract_source(url):
+    """URL에서 출처(언론사) 추출"""
+    try:
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc
+
+        # 알려진 언론사 매핑
+        source_map = {
+            'chosun.com': '조선일보',
+            'donga.com': '동아일보',
+            'joongang.co.kr': '중앙일보',
+            'hankyung.com': '한국경제',
+            'mk.co.kr': '매일경제',
+            'sedaily.com': '서울경제',
+            'hani.co.kr': '한겨레',
+            'khan.co.kr': '경향신문',
+            'yna.co.kr': '연합뉴스',
+            'yonhapnews.co.kr': '연합뉴스',
+            'news1.kr': '뉴스1',
+            'newsis.com': '뉴시스',
+            'edaily.co.kr': '이데일리',
+            'mt.co.kr': '머니투데이',
+            'etnews.com': '전자신문',
+            'zdnet.co.kr': 'ZDNet',
+            'bloter.net': '블로터',
+            'sbs.co.kr': 'SBS',
+            'kbs.co.kr': 'KBS',
+            'mbc.co.kr': 'MBC',
+            'jtbc.co.kr': 'JTBC',
+            'ytn.co.kr': 'YTN',
+        }
+
+        for key, name in source_map.items():
+            if key in domain:
+                return name
+
+        # 매핑 없으면 도메인 반환
+        return domain.replace('www.', '').split('.')[0]
+    except:
+        return '뉴스'
+
+
+def collect_from_naver_api():
+    """네이버 검색 API에서 카테고리별 뉴스 수집"""
     all_news = []
 
-    for category, queries in CATEGORY_QUERIES.items():
-        for query in queries:
-            news_list = fetch_google_news(query, category)
+    for category, keywords in SEARCH_KEYWORDS.items():
+        for keyword in keywords:
+            news_list = fetch_naver_news(keyword, category, display=10)
             all_news.extend(news_list)
 
     return all_news
@@ -143,18 +188,18 @@ def extract_keywords_from_news(news_list):
 
 def collect_all_news():
     """
-    Google News에서 뉴스 수집 및 저장
+    네이버 검색 API에서 뉴스 수집 및 저장
     """
     print("=" * 50)
-    print("Google News 수집 시작")
+    print("네이버 뉴스 수집 시작")
     print("=" * 50)
 
     all_news = []
 
-    # Google News에서 수집
-    print("\n[1] Google News 수집 중...")
-    google_news = collect_from_google_news()
-    all_news.extend(google_news)
+    # 네이버 검색 API에서 수집
+    print("\n[1] 네이버 검색 API 수집 중...")
+    naver_news = collect_from_naver_api()
+    all_news.extend(naver_news)
 
     # 중복 제거
     seen_titles = set()
