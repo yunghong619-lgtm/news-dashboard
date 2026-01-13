@@ -1,0 +1,30 @@
+name: Update News
+
+on:
+  schedule:
+    # 매 시간 정각에 실행 (UTC 기준)
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    # 수동 실행 가능
+
+jobs:
+  collect-news:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Collect News
+        run: |
+          echo "Starting news collection at $(date)"
+          response=$(curl -s -w "\n%{http_code}" "https://news-dashboard-v9ve.onrender.com/api/collect")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "Response: $body"
+          echo "HTTP Status: $http_code"
+
+          if [ "$http_code" -eq 200 ]; then
+            echo "News collection successful!"
+          else
+            echo "News collection failed with status $http_code"
+            exit 1
+          fi

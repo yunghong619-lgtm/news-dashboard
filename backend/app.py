@@ -148,13 +148,34 @@ def get_keywords():
 
 @app.route('/api/refresh', methods=['POST'])
 def refresh_data():
-    """네이버 뉴스 실시간 수집"""
+    """뉴스 실시간 수집 (POST)"""
     import traceback
     try:
         count = collect_all_news()
         return jsonify({
             'success': True,
-            'message': f'네이버에서 {count}개의 뉴스를 수집했습니다.'
+            'message': f'{count}개의 뉴스를 수집했습니다.'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
+@app.route('/api/collect', methods=['GET'])
+def collect_data():
+    """뉴스 수집 (GET) - GitHub Actions용"""
+    import traceback
+    from datetime import datetime
+    try:
+        count = collect_all_news()
+        return jsonify({
+            'success': True,
+            'message': f'{count}개의 뉴스를 수집했습니다.',
+            'count': count,
+            'timestamp': datetime.now().isoformat()
         })
     except Exception as e:
         return jsonify({
