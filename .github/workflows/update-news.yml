@@ -12,19 +12,35 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Wake up Render server
+        run: |
+          echo "Waking up Render server..."
+          curl -s --max-time 120 "https://news-dashboard-v9ve.onrender.com/" > /dev/null || true
+          echo "Waiting for server to be ready..."
+          sleep 10
+
       - name: Collect News
         run: |
           echo "Starting news collection at $(date)"
-          response=$(curl -s -w "\n%{http_code}" "https://news-dashboard-v9ve.onrender.com/api/collect")
-          http_code=$(echo "$response" | tail -n1)
-          body=$(echo "$response" | sed '$d')
 
-          echo "Response: $body"
-          echo "HTTP Status: $http_code"
+          # 최대 3번 재시도
+          for i in 1 2 3; do
+            echo "Attempt $i..."
+            response=$(curl -s --max-time 120 -w "\n%{http_code}" "https://news-dashboard-v9ve.onrender.com/api/collect")
+            http_code=$(echo "$response" | tail -n1)
+            body=$(echo "$response" | sed '$d')
 
-          if [ "$http_code" -eq 200 ]; then
-            echo "News collection successful!"
-          else
-            echo "News collection failed with status $http_code"
-            exit 1
-          fi
+            echo "Response: $body"
+            echo "HTTP Status: $http_code"
+
+            if [ "$http_code" -eq 200 ]; then
+              echo "News collection successful!"
+              exit 0
+            fi
+
+            echo "Attempt $i failed, waiting 15 seconds..."
+            sleep 15
+          done
+
+          echo "All attempts failed"
+          exit 1
